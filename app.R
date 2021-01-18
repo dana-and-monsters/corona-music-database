@@ -474,13 +474,16 @@ server<-function(input, output, session){
       df_long<-plot.obj$data
       
       plotdat<-df_long %>%
-        filter(count > 0)
+        filter(count > 0)%>%
+        filter(!is.na(Country1))%>%
+        filter(!is.na(Continent))
       
       plot<-ggplot(plotdat, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
-        geom_jitter(aes(alpha = 0.3,  text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
-        ggtitle(paste("Prevalence of", plot.obj$variable))+
+        geom_jitter(alpha = 0.5, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
+        ggtitle(paste("Prevalence of",input$variableName))+
         theme_minimal()+
-        theme(axis.text.x = element_text(angle = 45)) 
+        theme(axis.text.x = element_text(angle = 45),
+              legend.title = element_blank()) 
       ggplotly(plot, tooltip = "text")
     })
     

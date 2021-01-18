@@ -44,11 +44,11 @@ make_country_and_continent_columns<-function(data){
   
   # Add continent
   # Create sums by Continent
-  europe<-c("Austria", "Belgium", "Croatia", "Denmark", "France", "Finland", "Germany", "Greece", "Hungary", "Ireland", "Italy", "Lithuania","Norway", "Netherlands", "Poland", "Serbia", "Switzerland", "Spain", "Sweden", "Turkey", "UK","Ukraine")
+  europe<-c("Austria", "Belgium", "Croatia", "Denmark", "France", "Finland", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Lithuania","Norway", "Netherlands", "Poland", "Portugal", "Scotland", "Serbia","Slovenia","Slovakia", "Switzerland", "Spain", "Sweden", "Turkey", "UK","Ukraine")
   pattern<- paste(europe, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "Europe"
   
-  NorthAmerica<-c("USA", "Canada", "Mexico", "Costa Rica", "Dominican Republic", "Panama", "Puerto Rico")
+  NorthAmerica<-c("USA", "Canada", "Mexico", "Costa Rica", "Dominican Republic", "Panama", "Puerto Rico", "Jamaica", "Federation of Saint Christopher and Nevis")
   pattern<- paste(NorthAmerica, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "North_America"
   
@@ -56,7 +56,7 @@ make_country_and_continent_columns<-function(data){
   pattern<- paste(SouthAmerica, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "South_America"
   
-  asia<-c("Malaysia", "India", "Singapore", "Indonesia", "Japan", "China", "Vietnam", "Lebanon", "Iran", "The Phillipines", "Pakistan", "Thailand", "Israel", "Sri Lanka")
+  asia<-c("Malaysia", "India", "Singapore","Saudi Arabia", "Indonesia", "Japan", "China", "Vietnam","Korea", "Lebanon", "Iran", "The Phillipines","Phillipines", "Pakistan", "Thailand", "Israel", "Sri Lanka", "United Arab Emirates")
   pattern<- paste(asia, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "Asia"
   
@@ -64,7 +64,7 @@ make_country_and_continent_columns<-function(data){
   pattern<- paste(oceania, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "Oceania"
   
-  africa<-c("South Africa", "Uganda","Senegal")
+  africa<-c("South Africa", "Uganda","Senegal", "Algeria", "Kenya")
   pattern<- paste(africa, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "Africa"
   
