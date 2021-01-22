@@ -50,13 +50,13 @@ make_country_and_continent_columns<-function(data){
   
   NorthAmerica<-c("USA", "Canada", "Mexico", "Costa Rica", "Dominican Republic", "Panama", "Puerto Rico", "Jamaica", "Federation of Saint Christopher and Nevis")
   pattern<- paste(NorthAmerica, collapse = "|")
-  data$Continent[grepl(pattern, data$Country1)]<- "North_America"
+  data$Continent[grepl(pattern, data$Country1)]<- "North America"
   
   SouthAmerica<-c("Chile", "Brazil", "Colombia")
   pattern<- paste(SouthAmerica, collapse = "|")
-  data$Continent[grepl(pattern, data$Country1)]<- "South_America"
+  data$Continent[grepl(pattern, data$Country1)]<- "South America"
   
-  asia<-c("Malaysia", "India", "Singapore","Saudi Arabia", "Indonesia", "Japan", "China", "Vietnam","Korea", "Lebanon", "Iran", "The Phillipines","Phillipines", "Pakistan", "Thailand", "Israel", "Sri Lanka", "United Arab Emirates")
+  asia<-c("Malaysia", "India", "Singapore","Saudi Arabia", "Indonesia", "Japan", "China", "Vietnam","Korea", "Lebanon", "Iran", "The Philippines","Philippines", "Pakistan", "Thailand", "Israel", "Sri Lanka", "United Arab Emirates")
   pattern<- paste(asia, collapse = "|")
   data$Continent[grepl(pattern, data$Country1)]<- "Asia"
   

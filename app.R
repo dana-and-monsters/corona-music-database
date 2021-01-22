@@ -67,8 +67,8 @@ ui<-fluidPage(
       selectInput("plottype","Plot Type:",
                   list("Histogram" = "histogram",
                        "Frequency Polygon" = "frequencyPolygon",
-                       "Wordcloud" = "wordcloud",
-                       "Plotly" = "plotly")
+                       "Plotly" = "plotly",
+                       "Wordcloud" = "wordcloud")
       ),
       selectInput("variableName", "Variable:",
                   NULL
@@ -154,7 +154,7 @@ server<-function(input, output, session){
       if("wordcloud" %in% input$plottype){
         options<-c(options,wordcloudOptions)
       }
-      updateSelectInput(session, "variableName", choices = options,selected = NULL)
+      updateSelectInput(session, "variableName", choices = options,selected = input$variableName)
     }
   })
   
@@ -200,11 +200,13 @@ server<-function(input, output, session){
       data=get(input$database)
       filt_var<-filter_variable()
       txt = as.character(data[[filt_var]])
-      response.split<-str_split(txt, " |,")
+      response.split<-str_split(txt, ",")
+      response.split.no.ws<-str_trim(unlist(response.split))
       # ID levels
-      lev<-unique(unlist(response.split))
+      lev<-unique(response.split.no.ws)
       filter_list<- lev[!(is.na(lev))] # remove NA
-      updateSelectInput(session, "filterVar", choices = filter_list,selected = "")
+      filter_list<-filter_list[filter_list !="?"]# remove "?"
+      updateSelectInput(session, "filterVar", choices = filter_list[str_order(filter_list)],selected = "")
     }
   })
   
@@ -270,14 +272,18 @@ server<-function(input, output, session){
       
       # filter data
       filt_var<-filter_variable()
-      filter_by<-input$filterVar
+      filter_by = ""
+      if (input$filterVar!=""){
+        filter_by<-input$filterVar  
+      }
+      data_f<-data
       if (filter_by != "" && input$filterbox == TRUE){
-        data<-data%>%
+        data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
       
       # make count data
-      data_count<-data %>% 
+      data_count<-data_f %>% 
         group_by(date, Country1, Continent)%>%
         summarize(Present = sum(get(variable)==1),
                   Absent = sum(get(variable)==0))
@@ -285,19 +291,26 @@ server<-function(input, output, session){
       # convert to long form
       df_long<-gather(data_count, variable, count, Present:Absent, factor_key = TRUE)
       
+      obj<-list(data = df_long,
+                variable = variable,
+                ylim = nrow(data))
+      
+      obj
+      
       # PROCESS VARS IN CHARACTERISTIC LIST
     } else if (input$variableName %in% video_characteristicList||input$variableName %in% media_characteristicList){
       
       # filter data
       filt_var<-filter_variable()
       filter_by<-input$filterVar
+      data_f<-data
       if (filter_by != "" && input$filterbox == TRUE){
-        data<-data%>%
+        data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
       
       # split on space
-      resp.split<-str_split(as.character(data[[variable]]), " |,")
+      resp.split<-str_split(as.character(data_f[[variable]]), " |,")
       
       # ID levels
       lev<-unique(unlist(resp.split))
@@ -308,13 +321,13 @@ server<-function(input, output, session){
       
       # convert to tabulated version
       resp.dummy<-lapply(resp.split, function(x) table(factor(x, levels = lev)))
-      variable_tabs<-with(data, data.frame(ID, do.call(rbind, resp.dummy), get(variable)))
+      variable_tabs<-with(data_f, data.frame(ID, do.call(rbind, resp.dummy), get(variable)))
       
       # change name of the column
       names(variable_tabs)[length(variable_tabs)]<-variable
       
       # merge with data
-      variable2<-merge(variable_tabs, data, by = c("ID", variable))
+      variable2<-merge(variable_tabs, data_f, by = c("ID", variable))
       
       # convert into a frequency table
       data_count<-variable2%>%
@@ -325,12 +338,19 @@ server<-function(input, output, session){
         group_by(date,variable, Country1, Continent)%>%
         summarize(count = sum(count ==1))
       
+      obj<-list(data = df_long,
+                variable = variable,
+                ylim = nrow(data))
+      
+      obj
+      
+    } else {
+      obj<-NULL
+      
+      obj
     }
     
-    obj<-list(data = df_long,
-              variable = variable)
     
-    obj
     
   })
   
@@ -353,13 +373,14 @@ server<-function(input, output, session){
       # filter data
       filt_var<-filter_variable()
       filter_by<-input$filterVar
+      data_f<-data
       if (filter_by != "" && input$filterbox == TRUE){
-        data<-data%>%
+        data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
       
       if (input$variableName %in% video_varListWordCloud||input$variableName %in% media_varListWordCloud){
-        wordlist <- data%>%
+        wordlist <- data_f%>%
           select(variable)%>%
           filter(!is.na(get(variable)))
         names(wordlist)[1]<-"word"
@@ -435,6 +456,7 @@ server<-function(input, output, session){
                fill = "variable",
                y = "count"))+
         geom_col()+
+        scale_y_continuous(name = "Count", limits = c(0,plot.obj$ylim))+
         ggtitle(paste("Histogram of", input$variableName))+
         theme_minimal()+
         theme(axis.text.x = element_text(angle = 45))
@@ -456,8 +478,10 @@ server<-function(input, output, session){
         
       ggplot(df_long, aes_string(x = "date", colour = "variable"))+
         geom_freqpoly(binwidth=2)+
+        scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Frequency of", input$variableName))+
-        theme_minimal()
+        theme_minimal()+
+        theme(axis.text.x = element_text(angle = 45))
     })
     
     ## PLOTLY
@@ -480,6 +504,7 @@ server<-function(input, output, session){
       
       plot<-ggplot(plotdat, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
         geom_jitter(alpha = 0.5, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
+        scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Prevalence of",input$variableName))+
         theme_minimal()+
         theme(axis.text.x = element_text(angle = 45),
