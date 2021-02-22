@@ -1,23 +1,34 @@
 library(ggplot2)
 library(plotly)
 library(shiny)
-library("readr")
+library(readr)
 library(qdapTools)
 library(dplyr)
 library(tidyr)
-library("ggridges")
-library("lubridate")
+library(ggridges)
+library(lubridate)
 library(stringr)
-library("tidytext")
+library(tidytext)
 library(wordcloud2)
 library(quanteda)
+library(shinythemes)
+library(fastDummies)
+library(data.table)
 
-source("app-pre-processing.R") # scripts for preprocessing are located here
+source("app-pre-processing.R") # scripts for preprocessing are located here along with the black theme (theme_black())
 
 # load data
-media<-read_delim("Coronamusic_MEDIA_v20210107.csv", delim = ";")
-video<-read_delim("Coronamusic_VIDEO_v20201214.csv", delim = ";")
+media<-read_delim("Coronamusic_MEDIA_v20210218_utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
+video<-read_delim("Coronamusic_VIDEO_v20210220_utf8.csv", delim = ";")
 titles<-read_delim("Titles.csv", delim = ";")
+
+#re-code dummy variables into the media file. The media file was changed after the app was created. These variables were originally dummy-coded/Boolean-coded. 
+media <- dummy_cols(media,select_columns="MediaFormat",split=",") # Remake old dummy variables
+setnames(media,# Rename dummy variables to be consistent with previous format
+         old=c("MediaFormat_audio","MediaFormat_video","MediaFormat_writtenDigital","MediaFormat_writtenPrint"),
+         new=c("MediaAudio","MediaVideo","MediaWrittenOnline","MediaWrittenPrint"))
+media<-media%>%
+  select(-MediaFormat)
 
 # pre-process (date and category)
 media<-preprocess_data(media)
@@ -54,11 +65,29 @@ media_characteristicList = c("Setting Code", "Emotions Code", "Music Maker Profe
 ## UI
 
 ui<-fluidPage(
+  theme = shinytheme("cyborg"),# other options: darkly, slate, cyborg
+  # # CSS
+  tags$head(
+    tags$style(HTML("
+        h3 {
+        font-size: 26px;
+        }
+        .well {
+         color: white;
+         background-color: #45CDD1;
+        }
+                    "))
+  ),
+  
+  # Title
+  titlePanel(title=div(img(src="Title-w-logo-transparent-2.png", width = "100%"))),
   sidebarLayout(
     
 ### INPUT
     
     sidebarPanel = sidebarPanel(
+
+        
       h3("Select Options"),
       selectInput("database","Database:",
                   list("Video" = "video",
@@ -82,16 +111,25 @@ ui<-fluidPage(
         selectInput("filterVar", "",
                     NULL
           )
-      )
+      ),
+      # change y-axis range
+      checkboxInput("y_range", "Change y-axis range")
       ),
 ### OUTPUT 
 
     mainPanel = mainPanel(
+      tags$style(HTML("
+          .nav.nav-tabs>li.active>a{
+          background-color: #45CDD1;
+          }
+       
+                  ")),
       h3(textOutput("caption")),
       
       ## tabsets
       
-      tabsetPanel(type = "tabs",
+      tabsetPanel(
+          type = "tabs",
                   tabPanel("Plot",
                           conditionalPanel(
                             condition = 'input.plottype == "histogram"',
@@ -103,7 +141,7 @@ ui<-fluidPage(
                           ),
                           conditionalPanel(
                             condition = 'input.plottype == "wordcloud"',
-                            wordcloud2Output('wordcloud', width = "100%", height= "400px")
+                            wordcloud2Output('wordcloud', width = "auto") #, width = "100%", height= "400px"
 
                           ),
                           conditionalPanel(
@@ -111,7 +149,6 @@ ui<-fluidPage(
                             plotlyOutput('plotly')
                           )
                         ),
-                  #tabPanel("Summary", verbatimTextOutput("summary")),
                   tabPanel("Table", tableOutput("table"))
       )
     ),
@@ -390,7 +427,7 @@ server<-function(input, output, session){
         # remove stopwords
         var_tokens_stop<-tokens_remove(var_tokens, stopwords("en"), padding = FALSE)
         # use keyword phrases to replace some tokens
-        phrases = c("covid-19","COVID-19", "corona virus","being moved", "wash hands", "living room", "soundtrack/theme song", "dance/electronica", "rap/hip-hop", "news report", "lyric video", "music video", "grief/sadness")
+        phrases = c("covid-19","COVID-19", "corona virus","being moved", "wash hands", "living room", "soundtrack/theme song", "dance/electronica", "rap/hip-hop", "news report", "lyric video", "music video", "grief/sadness", "theme song", "brass band", "nursery rhyme", "heavy metal")
         toks_comp<-tokens_compound(var_tokens_stop, pattern = phrase(phrases))
         # convert to dataframe
         var_DFM<-dfm(toks_comp, remove = stopwords(source = "smart"))
@@ -426,10 +463,11 @@ server<-function(input, output, session){
       if(wordlist$word[1] == "" | wordlist$n[1] =="") return()
       
       set.seed(1234)
-      colorpalette<-c("darkviolet","violet", "aquamarine", "turquoise","gold", "darkturquoise", "lightseagreen", "darkblue")
+      colorpalette<-c("darkviolet", "cyan", "violet","gold", "mediumspringgreen") # , darkturquoise", "aquamarine" turquoise
       colorVec<-rep(colorpalette, length.out=nrow(wordlist))
       
-      wordcloud2(wordlist,rotateRatio = 0.3, color = colorVec, size = 0.4)
+      sizeValue = 0.4#0.4
+      wordcloud2(wordlist,rotateRatio = 0.3, color = colorVec, backgroundColor = "black", size = sizeValue, widgetsize =c("1000","1000")) #, widgetsize = "200%"
       
     })
     
@@ -450,15 +488,22 @@ server<-function(input, output, session){
         group_by(variable)%>%
         summarise(count =sum(count, na.rm = TRUE)) # note without the na.rm = TRUE any instances of NA result in NAs for the sum
         
+      ylimit<-plot.obj$ylim
+      if(input$y_range == TRUE){
+        ylimit = max(df$count)
+      }
+      
+      names(df)<-c("Variable", "Count")
+      
       ggplot(df,
              aes_string(
-               x = "variable", 
-               fill = "variable",
-               y = "count"))+
+               x = "Variable", 
+               fill = "Variable",
+               y = "Count"))+
         geom_col()+
-        scale_y_continuous(name = "Count", limits = c(0,plot.obj$ylim))+
+        scale_y_continuous(name = "Count", limits = c(0,ylimit))+
         ggtitle(paste("Histogram of", input$variableName))+
-        theme_minimal()+
+        theme_black()+
         theme(axis.text.x = element_text(angle = 45))
     })
     
@@ -480,7 +525,8 @@ server<-function(input, output, session){
         geom_freqpoly(binwidth=2)+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Frequency of", input$variableName))+
-        theme_minimal()+
+        labs(y = "Count", colour = "Variable")+
+        theme_black()+
         theme(axis.text.x = element_text(angle = 45))
     })
     
@@ -503,38 +549,35 @@ server<-function(input, output, session){
         filter(!is.na(Continent))
       
       plot<-ggplot(plotdat, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
-        geom_jitter(alpha = 0.5, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
+        geom_jitter(alpha = 0.7, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Prevalence of",input$variableName))+
-        theme_minimal()+
+        labs(y = "Variable")+
+        theme_black()+
         theme(axis.text.x = element_text(angle = 45),
               legend.title = element_blank()) 
       ggplotly(plot, tooltip = "text")
     })
-    
-    
-    # ## CREATE SUMMARY
-    # output$summary<-renderPrint({
-    #   if(input$plottype == "histogram"||input$plottype == "plotly"||input$plottype == "frequencyPolygon"){
-    #     plot.obj<-plotData()
-    #     summary(plot.obj)
-    #   } else if(input$plottype == "wordcloud"){
-    #     wordList<-words()
-    #     summary(wordList)
-    #   }
-    # })
   
     ## CREATE TABLE
     output$table <- renderTable({
+      
       if (input$plottype == "histogram"||input$plottype == "plotly"||input$plottype == "frequencyPolygon"){
         table<-plotData()
+        if(is.null(table)) return()
         t<-table$data%>%
           filter(count>0)
         t$date<-as.character(t$date)
+        names(t)<-c("Date", "Country", "Continent", input$variableName, "Count")
         t
         
-      } else if (input$plottype == "wordcloud")
-        wordList<-words()
+      } else if (input$plottype == "wordcloud"){
+          wordList<-words()
+          if(is.null(wordList)) return()
+          wordList$n<-as.integer(wordList$n)
+          names(wordList)<-c("Word", "Count")
+          wordList
+      }
       })
   }
 
