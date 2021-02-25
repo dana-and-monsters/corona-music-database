@@ -428,7 +428,7 @@ server<-function(input, output, session){
         # remove stopwords
         var_tokens_stop<-tokens_remove(var_tokens, c(stopwords("en"), stopwords("fr"), stopwords("it"), stopwords("da"), stopwords("es"), stopwords("no")), padding = FALSE)
         # use keyword phrases to replace some tokens
-        phrases = c("covid-19","COVID-19", "corona virus","being moved", "wash hands", "living room", "soundtrack/theme song", "dance/electronica", "rap/hip-hop", "news report", "lyric video", "music video", "grief/sadness", "theme song", "brass band",  "marching band","nursery rhyme", "heavy metal", "classic rock", "bossa nova", "2019", "2020", "Puerto Rico", "Costa Rica", "Dominican Republic", "Hong Kong", "Sri Lanka", "parking lot", "suburban neighbourhood", "bull pin", "deserted plaza", "cruise ship", "South African", "black and white","computer generated", "toilet paper", "spoken word")
+        phrases = c("covid-19","COVID-19", "corona virus","being moved", "wash hands", "living room", "soundtrack/theme song", "dance/electronica", "rap/hip-hop", "news report", "lyric video", "music video", "grief/sadness", "theme song", "brass band",  "marching band","nursery rhyme", "heavy metal", "classic rock", "bossa nova", "2019", "2020", "Puerto Rico", "Costa Rica", "Dominican Republic", "Hong Kong", "Sri Lanka", "parking lot", "suburban neighbourhood", "bull pin", "deserted plaza", "cruise ship", "South African", "black and white","computer generated", "toilet paper", "spoken word", "Los Angeles", "World Economic Forum", "Saudi Arabia", "military base", "fire station", "live streaming", "original song", "government silencing", "participatory music making", "fake news", "joint singing", "live concert", "virtual concert", "virtual performance", "virtual dance", "virtual choir", "virtual festival", "virtual reality", "music industry", "music making")
         toks_comp<-tokens_compound(var_tokens_stop, pattern = phrase(phrases))
         # convert to dataframe
         var_DFM<-dfm(toks_comp, remove = stopwords(source = "smart"))
@@ -506,7 +506,7 @@ server<-function(input, output, session){
         ggtitle(paste("Histogram of", input$variableName))+
         theme_black()+
         theme(axis.text.x = element_text(angle = 45))
-    })
+    },bg = "black")
     
     
     ## FREQUENCY POLYGON
