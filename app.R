@@ -15,11 +15,11 @@ library(shinythemes)
 library(fastDummies)
 library(data.table)
 
-source("app-pre-processing.R") # scripts for preprocessing are located here along with the black theme (theme_black())
+source("app-pre-processing-2.R") # scripts for preprocessing are located here along with the black theme (theme_black())
 
 # load data
-media<-read_delim("Coronamusic_MEDIA_v20210218_utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
-video<-read_delim("Coronamusic_VIDEO_v20210220_utf8.csv", delim = ";")
+media<-read_delim("Coronamusic_MEDIA_v20210301_utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
+video<-read_delim("Coronamusic_VIDEO_v20210301_utf8.csv", delim = ";")
 titles<-read_delim("Titles.csv", delim = ";")
 
 #re-code dummy variables into the media file. The media file was changed after the app was created. These variables were originally dummy-coded/Boolean-coded. 
@@ -41,26 +41,18 @@ video<-factor_video_variables(video)
 media<-make_country_and_continent_columns(media)
 video<-make_country_and_continent_columns(video)
 
-# create setting code columns
-video<-make_setting_code(video) 
-media<-make_setting_code(media)
+#make setting "super-category"
 
-# create genre code column
-video<-make_genre_code(video) 
-
-# create emotions code column
-video<-make_emotions_code(video)
-media<-make_emotions_code(media)
 
 # Show only certain variables depending on which plot is selected
 # VIDEO
 video_varListWordCloud<-c("Title", "Social Media Platform", "Country", "Setting", "Genre", "Emotions","Features")
 video_booleanList = c("Joint Musicking", "Original Covid Song","Original Covid Lyrics","Movement", "Health Information", "Conflict")
-video_characteristicList = c("Setting Code", "Genre Code", "Social Media Platform", "Emotions Code")
+video_characteristicList = c("Setting", "Genre", "Social Media Platform", "Emotions", "Features")
 # MEDIA
 media_varListWordCloud<-c("Title", "Media Platform", "Country", "Language", "Setting", "Emotions","Features")
 media_booleanList = c("Media Written Online", "Media Audio","Media Video","Media Written Print", "Embedded External Video", "Movement", "Health Information", "Conflict")
-media_characteristicList = c("Setting Code", "Emotions Code", "Music Maker Professionalism")
+media_characteristicList = c("Setting", "Emotions", "Music Maker Professionalism", "Features")
 
 ## UI
 
@@ -243,7 +235,7 @@ server<-function(input, output, session){
       # ID levels
       lev<-unique(response.split.no.ws)
       filter_list<- lev[!(is.na(lev))] # remove NA
-      filter_list<-filter_list[filter_list !="?"]# remove "?"
+      # filter_list<-filter_list[filter_list !="?"]# remove "?"
       updateSelectInput(session, "filterVar", choices = filter_list[str_order(filter_list)],selected = "")
     }
   })
@@ -347,19 +339,24 @@ server<-function(input, output, session){
           filter(grepl(filter_by, get(filt_var)))
       }
       
-      # split on space
-      resp.split<-str_split(as.character(data_f[[variable]]), " |,")
+      # split on comma
+      resp.split<-str_split(as.character(data_f[[variable]]), ",")
+      
+      #remove whitespace before first word
+      resp.split_no_ws<-lapply(resp.split, str_trim)
       
       # ID levels
-      lev<-unique(unlist(resp.split))
-      lev<-lev[lev !=""] # remove "" level
+      lev<-unique(unlist(resp.split_no_ws))
       lev<-lev[!is.na(lev)] # remove  NA level
       first<-lev[1]
       last<-lev[length(lev)]
       
       # convert to tabulated version
-      resp.dummy<-lapply(resp.split, function(x) table(factor(x, levels = lev)))
-      variable_tabs<-with(data_f, data.frame(ID, do.call(rbind, resp.dummy), get(variable)))
+      resp.dummy<-lapply(resp.split_no_ws, function(x) table(factor(x, levels = lev)))
+      dummy.table<-do.call(rbind, resp.dummy)
+      
+      # check.names = FALSE should keep the var names the same punctuation
+      variable_tabs<-with(data_f, data.frame(ID, dummy.table, get(variable), check.names=FALSE))
       
       # change name of the column
       names(variable_tabs)[length(variable_tabs)]<-variable
@@ -488,15 +485,19 @@ server<-function(input, output, session){
         select(variable, count)%>%
         group_by(variable)%>%
         summarise(count =sum(count, na.rm = TRUE)) # note without the na.rm = TRUE any instances of NA result in NAs for the sum
+      
+      #Filter to only include categories with >5 instances
+      df2<-df%>%
+        filter(count>5)
         
       ylimit<-plot.obj$ylim
       if(input$y_range == TRUE){
-        ylimit = max(df$count)
+        ylimit = max(df2$count)
       }
       
-      names(df)<-c("Variable", "Count")
+      names(df2)<-c("Variable", "Count")
       
-      ggplot(df,
+      ggplot(df2,
              aes_string(
                x = "Variable", 
                fill = "Variable",
@@ -519,17 +520,32 @@ server<-function(input, output, session){
       #make sure variable has loaded
       if(plot.obj$variable == "") return()
       
+      #Filter to only include categories with >5 instances
       df_long<-plot.obj$data%>%
         filter(count>0)
-        
-      ggplot(df_long, aes_string(x = "date", colour = "variable"))+
+      
+      # check which items have greater than 5 instances regardless of location so know which vars to plot
+      
+      df<-df_long%>%
+        select(variable, count)%>%
+        group_by(variable)%>%
+        summarise(count =sum(count, na.rm = TRUE))%>% # note without the na.rm = TRUE any instances of NA result in NAs for the sum
+        filter(count>5)%>%
+        select(variable)
+      
+      vars_to_plot<-paste(unlist(df), collapse = "|")
+      
+      df2<-df_long%>%
+        filter(grepl(vars_to_plot, variable))
+      
+      ggplot(df2, aes_string(x = "date", colour = "variable"))+
         geom_freqpoly(binwidth=2)+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Frequency of", input$variableName))+
         labs(y = "Count", colour = "Variable")+
         theme_black()+
         theme(axis.text.x = element_text(angle = 45))
-    })
+    },bg = "black")
     
     ## PLOTLY
     
@@ -549,7 +565,21 @@ server<-function(input, output, session){
         filter(!is.na(Country1))%>%
         filter(!is.na(Continent))
       
-      plot<-ggplot(plotdat, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
+      # check which items have greater than 5 instances regardless of location so know which vars to plot
+      
+      df<-plotdat%>%
+        select(variable, count)%>%
+        group_by(variable)%>%
+        summarise(count =sum(count, na.rm = TRUE))%>% # note without the na.rm = TRUE any instances of NA result in NAs for the sum
+        filter(count>5)%>%
+        select(variable)
+      
+      vars_to_plot<-paste(unlist(df), collapse = "|")
+      
+      df2<-plotdat%>%
+        filter(grepl(vars_to_plot, variable))
+      
+      plot<-ggplot(df2, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
         geom_jitter(alpha = 0.7, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Prevalence of",input$variableName))+
@@ -562,8 +592,21 @@ server<-function(input, output, session){
   
     ## CREATE TABLE
     output$table <- renderTable({
-      
-      if (input$plottype == "histogram"||input$plottype == "plotly"||input$plottype == "frequencyPolygon"){
+      if(input$plottype == "histogram"){
+        table<-plotData()
+        if(is.null(table)) return()
+        t<-table$data%>%
+          filter(count>0)
+        t$date<-as.character(t$date)
+        
+        df<-t%>%
+          select(variable, count)%>%
+          group_by(variable)%>%
+          summarise(count =sum(count, na.rm = TRUE)) # note without the na.rm = TRUE any instances of NA result in NAs for the sum
+        names(df)<-c(input$variableName, "Count")
+        df
+      }
+      else if (input$plottype == "plotly"||input$plottype == "frequencyPolygon"){
         table<-plotData()
         if(is.null(table)) return()
         t<-table$data%>%
