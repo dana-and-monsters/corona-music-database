@@ -18,8 +18,8 @@ library(data.table)
 source("app-pre-processing-2.R") # scripts for preprocessing are located here along with the black theme (theme_black())
 
 # load data
-media<-read_delim("Coronamusic_MEDIA_v20210301_utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
-video<-read_delim("Coronamusic_VIDEO_v20210301_utf8.csv", delim = ";")
+media<-read_delim("Coronamusic_MEDIA_v20210318-utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
+video<-read_delim("Coronamusic_VIDEO_v20210318-utf8.csv", delim = ";")
 titles<-read_delim("Titles.csv", delim = ";")
 
 #re-code dummy variables into the media file. The media file was changed after the app was created. These variables were originally dummy-coded/Boolean-coded. 
@@ -216,7 +216,7 @@ server<-function(input, output, session){
       if("wordcloud" %in% input$plottype){
         options<-c(filt_options,wordcloudOptions)
       }
-      updateSelectInput(session, "filter", choices = options,selected = NULL)
+      updateSelectInput(session, "filter", choices = options,selected = input$filter)
     }
   })
   
@@ -231,12 +231,16 @@ server<-function(input, output, session){
       filt_var<-filter_variable()
       txt = as.character(data[[filt_var]])
       response.split<-str_split(txt, ",")
-      response.split.no.ws<-str_trim(unlist(response.split))
-      # ID levels
-      lev<-unique(response.split.no.ws)
-      filter_list<- lev[!(is.na(lev))] # remove NA
-      # filter_list<-filter_list[filter_list !="?"]# remove "?"
-      updateSelectInput(session, "filterVar", choices = filter_list[str_order(filter_list)],selected = "")
+      cats<-str_trim(unlist(response.split))
+      filt_opt<-data.frame(cats)
+      filt_opt2<-filt_opt%>%
+        group_by(cats)%>%
+        summarize(count = n())%>%
+        filter(count>=5)%>% # display only options with greater than 5 instances
+        filter(!is.na(cats)) #remove na
+      filter_list<-filt_opt2$cats
+      filterchoices = filter_list[str_order(filter_list)]
+      updateSelectInput(session, "filterVar", choices = filterchoices, selected = input$filterVar)
     }
   })
   
@@ -526,17 +530,14 @@ server<-function(input, output, session){
       
       # check which items have greater than 5 instances regardless of location so know which vars to plot
       
-      df<-df_long%>%
+      vars_to_plot<-df_long%>%
         select(variable, count)%>%
         group_by(variable)%>%
         summarise(count =sum(count, na.rm = TRUE))%>% # note without the na.rm = TRUE any instances of NA result in NAs for the sum
         filter(count>5)%>%
         select(variable)
       
-      vars_to_plot<-paste(unlist(df), collapse = "|")
-      
-      df2<-df_long%>%
-        filter(grepl(vars_to_plot, variable))
+      df2<-df_long[(which(df_long$variable %in% unlist(vars_to_plot))), ]
       
       ggplot(df2, aes_string(x = "date", colour = "variable"))+
         geom_freqpoly(binwidth=2)+
@@ -567,20 +568,17 @@ server<-function(input, output, session){
       
       # check which items have greater than 5 instances regardless of location so know which vars to plot
       
-      df<-plotdat%>%
+      vars_to_plot<-plotdat%>%
         select(variable, count)%>%
         group_by(variable)%>%
         summarise(count =sum(count, na.rm = TRUE))%>% # note without the na.rm = TRUE any instances of NA result in NAs for the sum
         filter(count>5)%>%
         select(variable)
       
-      vars_to_plot<-paste(unlist(df), collapse = "|")
-      
-      df2<-plotdat%>%
-        filter(grepl(vars_to_plot, variable))
+      df2<-plotdat[(which(plotdat$variable %in% unlist(vars_to_plot))), ]
       
       plot<-ggplot(df2, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
-        geom_jitter(alpha = 0.7, aes(text = paste0("Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
+        geom_jitter(alpha = 0.7, aes(text = paste0("Variable = ", variable, "\n", "Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
         ggtitle(paste("Prevalence of",input$variableName))+
         labs(y = "Variable")+
