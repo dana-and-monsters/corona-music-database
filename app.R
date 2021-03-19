@@ -18,8 +18,8 @@ library(data.table)
 source("app-pre-processing-2.R") # scripts for preprocessing are located here along with the black theme (theme_black())
 
 # load data
-media<-read_delim("Coronamusic_MEDIA_v20210318-utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
-video<-read_delim("Coronamusic_VIDEO_v20210318-utf8.csv", delim = ";")
+media<-read_delim("Coronamusic_MEDIA_v20210319-utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
+video<-read_delim("Coronamusic_VIDEO_v20210319-utf8.csv", delim = ";")
 titles<-read_delim("Titles.csv", delim = ";")
 
 #re-code dummy variables into the media file. The media file was changed after the app was created. These variables were originally dummy-coded/Boolean-coded. 
@@ -236,7 +236,7 @@ server<-function(input, output, session){
       filt_opt2<-filt_opt%>%
         group_by(cats)%>%
         summarize(count = n())%>%
-        filter(count>=5)%>% # display only options with greater than 5 instances
+        filter(count>5)%>% # display only options with greater than 5 instances
         filter(!is.na(cats)) #remove na
       filter_list<-filt_opt2$cats
       filterchoices = filter_list[str_order(filter_list)]
