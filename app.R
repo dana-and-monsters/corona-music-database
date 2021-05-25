@@ -18,8 +18,8 @@ library(data.table)
 source("app-pre-processing-2.R") # scripts for preprocessing are located here along with the black theme (theme_black())
 
 # load data
-media<-read_delim("Coronamusic_MEDIA_v20210319-utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. There are still at least 2 special characters that are not working (named )
-video<-read_delim("Coronamusic_VIDEO_v20210319-utf8.csv", delim = ";")
+media<-read_delim("Coronamusic_MEDIA_v20210519-utf8.csv", delim = ";") # these utf-8 files were created by taking the file sent by Niels (ANSI encoding) opening in Notepad, save as and changing encoding to utf-8. 
+video<-read_delim("Coronamusic_VIDEO_v20210519-utf8.csv", delim = ";")
 titles<-read_delim("Titles.csv", delim = ";")
 
 #re-code dummy variables into the media file. The media file was changed after the app was created. These variables were originally dummy-coded/Boolean-coded. 
@@ -40,9 +40,6 @@ video<-factor_video_variables(video)
 # create country column
 media<-make_country_and_continent_columns(media)
 video<-make_country_and_continent_columns(video)
-
-#make setting "super-category"
-
 
 # Show only certain variables depending on which plot is selected
 # VIDEO
@@ -100,10 +97,9 @@ ui<-fluidPage(
       conditionalPanel(
         condition = "input.filterbox == true",
         selectInput("filter", "Filter By:",
-                    NULL),
-        selectInput("filterVar", "",
-                    NULL
-          )
+                    choices = ""),
+        selectInput("filterVar", "Category:",
+                    choices = "")
       ),
       # change y-axis range
       checkboxInput("y_range", "Change y-axis range")
@@ -156,12 +152,12 @@ server<-function(input, output, session){
   check<-function(x){is.null(x) || x==""}
   
   ### Update available options in the variable list
-  
   options<-c()
   
   observe({
     if(check(input$database)) return() # if no database
     if(!check(input$database)){
+      
       if(input$database =="video"){
         booleanList<-video_booleanList
         characteristicList<-video_characteristicList
@@ -188,12 +184,27 @@ server<-function(input, output, session){
     }
   })
   
-  ### Update available options in the filtering list
-  filt_options<-c("Country", "Continent")
+  ### Get variable name
   
-  observe({
+  variable<-reactive({
+    check<-function(x){is.null(x) || x==""}
+    if(check(input$variableName)) return() # if no variable name
+    
+    if(!check(input$variableName)){ # if it exists
+      var<-titles[[input$variableName]]
+    }
+    var
+  })
+  
+  ### Update available options in the filtering list
+  
+  
+  
+  options2<-c()
+  observeEvent(input$filterbox, {
     if(check(input$database)) return() # if no database
     if(!check(input$database)){
+      
       if(input$database =="video"){
         booleanList<-video_booleanList
         characteristicList<-video_characteristicList
@@ -208,21 +219,36 @@ server<-function(input, output, session){
       wordcloudOptions<-varListWordCloud
     
       if("histogram" %in% input$plottype|| "frequencyPolygon" %in% input$plottype){
-        options<-c(filt_options,frequencyOptions)
+        options2<-c(options2, "Country", "Continent",frequencyOptions)
       }
       if("plotly" %in% input$plottype){
-        options<-c(filt_options,plotlyOptions)
+        options2<-c(options2, "Country", "Continent",plotlyOptions)
       }
       if("wordcloud" %in% input$plottype){
-        options<-c(filt_options,wordcloudOptions)
+        options<-c(options2, "Continent",wordcloudOptions)
+        options2<- options[options!="Title"]
       }
-      updateSelectInput(session, "filter", choices = options,selected = input$filter)
+      updateSelectInput(session, "filter", choices = options2,selected = input$filter)
     }
   })
   
-  ### Update available options in the filtering by list
-
-  observe({
+  ### Get filtering variable name
+  
+  filter_variable<-reactive({
+    check<-function(x){is.null(x) || x==""}
+    if(check(input$filter)) return() # if no variable name
+    
+    if(!check(input$filter)){
+      var<-titles[[input$filter]]
+    }
+    var
+  })
+  
+  ### Get filtering variable options
+  
+  
+  filter_variable_options<-reactive({ # 
+    filteroptions<-character(0)
     check<-function(x){is.null(x) || x==""}
     if(check(input$filter)) return() # if no variable name
     
@@ -238,10 +264,67 @@ server<-function(input, output, session){
         summarize(count = n())%>%
         filter(count>5)%>% # display only options with greater than 5 instances
         filter(!is.na(cats)) #remove na
-      filter_list<-filt_opt2$cats
-      filterchoices = filter_list[str_order(filter_list)]
-      updateSelectInput(session, "filterVar", choices = filterchoices, selected = input$filterVar)
+      filteroptions<-filt_opt2$cats
     }
+    filteroptions
+  })
+
+  
+  ### Update available options in the filtering by list
+  observeEvent(input$filter,{ #observeEvent(input$filter, {
+      filterchoices<-character(0)
+      filterchoices<-filter_variable_options()
+      select= head(filterchoices,1)
+      updateSelectInput(session = session,inputId =  "filterVar", choices = filterchoices, selected = select) #     }
+  })
+  
+#   observe({ #observeEvent(filter_variable(),{...}
+#     if(check(input$database)||check(input$filter)||input$filterbox == FALSE) return() # if no database, filter, or filtering box
+#     if(!check(input$database)){
+#       filterchoices<-c()
+#       
+#       if(input$filterbox == TRUE && !check(input$filter)){
+# 
+# #        filt_var<-input$filter
+#         
+#       #if(check(filVar)) return() # if no filtering variable name
+#   
+#       #if(!check(filVar)){ # if there is a filtering variable name
+#         
+#         # data=get(input$database)
+#         # # filt_var<-filter_variable()
+#         # txt = as.character(data[[filt_var]])
+#         # response.split<-str_split(txt, ",")
+#         # cats<-str_trim(unlist(response.split))
+#         # filt_opt<-data.frame(cats)
+#         # filt_opt2<-filt_opt%>%
+#         #   group_by(cats)%>%
+#         #   summarize(count = n())%>%
+#         #   filter(count>5)%>% # display only options with greater than 5 instances
+#         #   filter(!is.na(cats)) #remove na
+#         # filterchoices<-filt_opt2$cats
+#         filterchoices<-filter_variable_options()
+#       }
+#       else if (check(input$filter)){
+#         filterchoices <- character(0)
+#       }
+#         
+#         updateSelectInput(session = session,inputId =  "filterVar", choices = filterchoices, selected = input$filterVar) # 
+#     }
+#     #}
+#   })
+  
+  ### Get filtering category name
+  
+  filter_variable_cat<-reactive({
+    var<-character(0)
+    check<-function(x){is.null(x) || x==""}
+    if(check(input$filterVar)) return() # if no variable name
+    
+    if(!check(input$filterVar)){
+      var<-input$filterVar
+    }
+    var
   })
   
   
@@ -254,30 +337,6 @@ server<-function(input, output, session){
            "frequencyPolygon" 	= 	"Frequency Polygon",
            "plotly" 	= 	"Plotly", 
            )
-  })
-  
-  ### Get variable name
-  
-  variable<-reactive({
-    check<-function(x){is.null(x) || x==""}
-    if(check(input$variableName)) return() # if no variable name
-    
-    if(!check(input$variableName)){ # if it exists
-      var<-titles[[input$variableName]]
-    }
-    var
-  })
-  
-  ### Get filtering variable name
-  
-  filter_variable<-reactive({
-    check<-function(x){is.null(x) || x==""}
-    if(check(input$filter)) return() # if no variable name
-    
-    if(!check(input$filter)){
-      var<-titles[[input$filter]]
-    }
-    var
   })
   
   ### Get data object
@@ -294,11 +353,11 @@ server<-function(input, output, session){
     
     data=get(input$database)
     
-    check<-function(obj){
+    check2<-function(obj){
       !all(variable %in% colnames(obj))
     }
     
-    if(check(data)) return()
+    if(check2(data)) return()
     
     # PRE-PROCESS
     
@@ -306,12 +365,14 @@ server<-function(input, output, session){
       
       # filter data
       filt_var<-filter_variable()
-      filter_by = ""
-      if (input$filterVar!=""){
-        filter_by<-input$filterVar  
-      }
+      #filter_by = "" # commented out May 20th trying to repair filtering in wordcloud 
+      filter_by = filter_variable_cat()
+      # if (input$filterVar!=""){
+      #   #filter_by<-input$filterVar  
+      #   filter_by<-filter_variable_cat()
+      # }
       data_f<-data
-      if (filter_by != "" && input$filterbox == TRUE){
+      if (!check(filter_by) && input$filterbox == TRUE){
         data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
@@ -336,9 +397,11 @@ server<-function(input, output, session){
       
       # filter data
       filt_var<-filter_variable()
-      filter_by<-input$filterVar
+      filter_by<-filter_variable_cat()#input$filterVar
+      
+      
       data_f<-data
-      if (filter_by != "" && input$filterbox == TRUE){
+      if (!check(filter_by) && input$filterbox == TRUE){ 
         data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
@@ -409,11 +472,24 @@ server<-function(input, output, session){
       
       data=get(input$database)
       
+      check2<-function(obj){
+        !all(variable %in% colnames(obj))
+      }
+      
+      if(check2(data)) return()
+      
       # filter data
       filt_var<-filter_variable()
-      filter_by<-input$filterVar
+      filter_by<-filter_variable_cat()#input$filterVar
+      opt<-filter_variable_options()
       data_f<-data
-      if (filter_by != "" && input$filterbox == TRUE){
+      
+      if (check(filter_by) && input$filterbox == TRUE) return()
+      
+      
+      if (!check(filter_by) && input$filterbox == TRUE){
+        if (!filter_by %in% opt) return() # THIS ALLOWS THE APP TO UPDATE THE FILTERING VARIABLE! VERY IMPORTNAT solved May 21, 2021
+        
         data_f<-data%>%
           filter(grepl(filter_by, get(filt_var)))
       }
@@ -500,7 +576,9 @@ server<-function(input, output, session){
       }
       
       names(df2)<-c("Variable", "Count")
-      
+      validate(
+        need(dim(df2)[1]>0, "There are less than 5 instances of the categories of this variable with these filtering options. Please change the variable and/or filtering.")
+      )
       ggplot(df2,
              aes_string(
                x = "Variable", 
@@ -538,7 +616,9 @@ server<-function(input, output, session){
         select(variable)
       
       df2<-df_long[(which(df_long$variable %in% unlist(vars_to_plot))), ]
-      
+      validate(
+        need(dim(df2)[1]>0, "There are less than 5 instances of the categories of this variable with these filtering options. Please change the variable and/or filtering.")
+      )
       ggplot(df2, aes_string(x = "date", colour = "variable"))+
         geom_freqpoly(binwidth=2)+
         scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
@@ -576,16 +656,18 @@ server<-function(input, output, session){
         select(variable)
       
       df2<-plotdat[(which(plotdat$variable %in% unlist(vars_to_plot))), ]
-      
-      plot<-ggplot(df2, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
-        geom_jitter(alpha = 0.7, aes(text = paste0("Variable = ", variable, "\n", "Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
-        scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
-        ggtitle(paste("Prevalence of",input$variableName))+
-        labs(y = "Variable")+
-        theme_black()+
-        theme(axis.text.x = element_text(angle = 45),
-              legend.title = element_blank()) 
-      ggplotly(plot, tooltip = "text")
+      validate(
+        need(dim(df2)[1]>0, "There are less than 5 instances of the categories of this variable with these filtering options. Please change the variable and/or filtering.")
+      )
+        plot<-ggplot(df2, aes_string(x = "date", y = "variable", size = "count", color = "Continent"))+
+          geom_jitter(alpha = 0.7, aes(text = paste0("Variable = ", variable, "\n", "Country = ", Country1,"\n", "Date = ", date, "\n", "Count = ", count)))+
+          scale_x_date(name = "Date", date_breaks = "1 week",date_labels = "%b %d", limits = c(as.Date("2020-02-09"),as.Date("2020-07-27")))+
+          ggtitle(paste("Prevalence of",input$variableName))+
+          labs(y = "Variable")+
+          theme_black()+
+          theme(axis.text.x = element_text(angle = 45),
+                legend.title = element_blank()) 
+        ggplotly(plot, tooltip = "text")
     })
   
     ## CREATE TABLE
@@ -610,7 +692,7 @@ server<-function(input, output, session){
         t<-table$data%>%
           filter(count>0)
         t$date<-as.character(t$date)
-        names(t)<-c("Date", "Country", "Continent", input$variableName, "Count")
+        names(t)<-c("Date", input$variableName, "Country", "Continent", "Count")
         t
         
       } else if (input$plottype == "wordcloud"){
