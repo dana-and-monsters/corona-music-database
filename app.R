@@ -102,7 +102,7 @@ ui<-fluidPage(
                     choices = "")
       ),
       # change y-axis range
-      checkboxInput("y_range", "Change y-axis range")
+      checkboxInput("y_range", "Change y-axis range of histogram")
       ),
 ### OUTPUT 
 
@@ -139,7 +139,12 @@ ui<-fluidPage(
                           )
                         ),
                   tabPanel("Table", tableOutput("table"))
-      )
+      ),
+      "Hansen NC, Treider JMG, Swarbrick D, Bamford JS, Wilson J and Vuoskoski JK (2021) A Crowd-Sourced Database of Coronamusic: Documenting Online Making and Sharing of Music During the COVID-19 Pandemic.
+      Front. Psychol. 12:684083. doi: 10.3389/fpsyg.2021.684083",
+      br(),
+      br(),
+      "Logo includes images of headphones provided by Mozilla, cute coronavirus by Manuela Molina (@mindheart.kids), and coronaviral font, all licensed under CC BY 4.0."
     ),
     position = c("left", "right"),
     fluid = TRUE
